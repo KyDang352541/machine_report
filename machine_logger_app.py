@@ -10,6 +10,20 @@ FILE_PATH = 'machine_logs.xlsx'
 
 st.set_page_config(page_title="Machine Time Report", layout="wide")
 st.title("📊 Machine Usage Report")
+
+# === Load dữ liệu ===
+@st.cache_data
+def load_data():
+    if os.path.exists(FILE_PATH):
+        return pd.read_excel(FILE_PATH, sheet_name='Logs', parse_dates=['Date'])
+    else:
+        st.warning("⚠️ No data found.")
+        return pd.DataFrame()
+
+df = load_data()
+
+if df.empty:
+    st.stop()
 def append_log_to_excel(filepath, log_data: dict, sheet_name="Logs"):
     """
     Append a dictionary as a new row into an Excel file, creating it if necessary.
@@ -41,25 +55,6 @@ def append_log_to_excel(filepath, log_data: dict, sheet_name="Logs"):
 
         except InvalidFileException as e:
             print("❌ Error reading the Excel file:", e)
-
-
-
-
-
-# === Load dữ liệu ===
-@st.cache_data
-def load_data():
-    if os.path.exists(FILE_PATH):
-        return pd.read_excel(FILE_PATH, sheet_name='Logs', parse_dates=['Date'])
-    else:
-        st.warning("⚠️ No data found.")
-        return pd.DataFrame()
-
-df = load_data()
-
-if df.empty:
-    st.stop()
-
 # === Bộ lọc cơ bản ===
 with st.expander("🔍 Filter Options"):
     col1, col2, col3 = st.columns(3)
