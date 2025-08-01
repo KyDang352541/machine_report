@@ -1,69 +1,73 @@
+# file: machine_report_app.py
+
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date, time
+import plotly.express as px
 import os
 
 FILE_PATH = 'machine_logs.xlsx'
 
-# === Hàm ghi dữ liệu vào file Excel ===
-def save_log_to_excel(log_entry):
-    if not os.path.exists(FILE_PATH):
-        df = pd.DataFrame([log_entry])
+st.set_page_config(page_title="Machine Time Report", layout="wide")
+st.title("📊 Machine Usage Report")
+
+# === Load dữ liệu ===
+@st.cache_data
+def load_data():
+    if os.path.exists(FILE_PATH):
+        return pd.read_excel(FILE_PATH, sheet_name='Logs', parse_dates=['Date'])
     else:
-        try:
-            df = pd.read_excel(FILE_PATH, sheet_name='Logs')
-        except ValueError:
-            df = pd.DataFrame()
+        st.warning("⚠️ No data found.")
+        return pd.DataFrame()
 
-        df = pd.concat([df, pd.DataFrame([log_entry])], ignore_index=True)
+df = load_data()
 
-    with pd.ExcelWriter(FILE_PATH, engine='openpyxl', mode='w') as writer:
-        df.to_excel(writer, sheet_name='Logs', index=False)
+if df.empty:
+    st.stop()
 
-# === Giao diện nhập liệu ===
-st.set_page_config(page_title="Machine Time Log", layout="centered")
-st.title("🛠️ Machine Time Log Entry")
-
-with st.form("machine_time_form"):
+# === Bộ lọc ===
+with st.expander("🔍 Filter Options"):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        log_date = st.date_input("📅 Date", value=date.today())
-        machine = st.selectbox("🛠️ Machine", ["CNC-1", "CNC-2", "Autoclave", "Robot"])
-        operator = st.text_input("👷 Operator")
+        machines = st.multiselect("🛠️ Machine", df['Machine'].unique(), default=df['Machine'].unique())
+        projects = st.multiselect("📁 Project", df['Project'].unique(), default=df['Project'].unique())
 
     with col2:
-        project = st.text_input("📁 Project")
-        shift = st.selectbox("⏱️ Shift", ["Morning", "Afternoon", "Night"])
-        start_time = st.time_input("▶️ Start Time", value=time(7, 30))
+        operators = st.multiselect("👷 Operator", df['Operator'].unique(), default=df['Operator'].unique())
+        shifts = st.multiselect("⏱️ Shift", df['Shift'].unique(), default=df['Shift'].unique())
 
     with col3:
-        end_time = st.time_input("⏹️ End Time", value=time(11, 30))
-        notes = st.text_input("📝 Notes")
+        date_range = st.date_input("📅 Date Range", value=[df['Date'].min(), df['Date'].max()])
 
-    submitted = st.form_submit_button("✅ Save")
+# === Áp dụng bộ lọc ===
+start_date, end_date = date_range
+filtered_df = df[
+    (df['Machine'].isin(machines)) &
+    (df['Project'].isin(projects)) &
+    (df['Operator'].isin(operators)) &
+    (df['Shift'].isin(shifts)) &
+    (df['Date'] >= pd.to_datetime(start_date)) &
+    (df['Date'] <= pd.to_datetime(end_date))
+]
 
-    if submitted:
-        # Tính giờ
-        start_dt = datetime.combine(log_date, start_time)
-        end_dt = datetime.combine(log_date, end_time)
+st.subheader(f"📋 Filtered Logs ({len(filtered_df)} records)")
+st.dataframe(filtered_df, use_container_width=True)
 
-        if end_dt <= start_dt:
-            st.error("❌ End time must be after start time.")
-        else:
-            hours = round((end_dt - start_dt).total_seconds() / 3600, 2)
+# === Tổng hợp theo máy ===
+st.subheader("📌 Total Hours by Machine")
+summary_machine = filtered_df.groupby('Machine')['Hours'].sum().reset_index()
+st.dataframe(summary_machine, use_container_width=True)
+fig1 = px.bar(summary_machine, x='Machine', y='Hours', title='Total Hours per Machine', text='Hours')
+st.plotly_chart(fig1, use_container_width=True)
 
-            log_entry = {
-                "Date": log_date,
-                "Machine": machine,
-                "Project": project,
-                "Shift": shift,
-                "Start": start_time.strftime("%H:%M"),
-                "End": end_time.strftime("%H:%M"),
-                "Hours": hours,
-                "Operator": operator,
-                "Notes": notes
-            }
+# === Tổng hợp theo dự án ===
+st.subheader("📌 Total Hours by Project")
+summary_project = filtered_df.groupby('Project')['Hours'].sum().reset_index()
+fig2 = px.pie(summary_project, names='Project', values='Hours', title='Hours by Project')
+st.plotly_chart(fig2, use_container_width=True)
 
-            save_log_to_excel(log_entry)
-            st.success(f"✅ Log saved: {hours} hours recorded for {machine}.")
+# === Tổng hợp theo operator ===
+st.subheader("📌 Total Hours by Operator")
+summary_op = filtered_df.groupby('Operator')['Hours'].sum().reset_index()
+fig3 = px.bar(summary_op, x='Operator', y='Hours', title='Hours by Operator', text='Hours')
+st.plotly_chart(fig3, use_container_width=True)
