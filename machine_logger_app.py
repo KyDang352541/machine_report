@@ -10,6 +10,41 @@ FILE_PATH = 'machine_logs.xlsx'
 
 st.set_page_config(page_title="Machine Time Report", layout="wide")
 st.title("📊 Machine Usage Report")
+def append_log_to_excel(filepath, log_data: dict, sheet_name="Logs"):
+    """
+    Append a dictionary as a new row into an Excel file, creating it if necessary.
+
+    Parameters:
+    - filepath: str - path to the Excel file
+    - log_data: dict - keys = column names, values = row values
+    - sheet_name: str - target sheet
+    """
+    df_new = pd.DataFrame([log_data])
+
+    if not os.path.exists(filepath):
+        # File doesn't exist -> create new with header
+        df_new.to_excel(filepath, index=False, sheet_name=sheet_name)
+        print(f"✅ Created new log file at {filepath}")
+    else:
+        try:
+            with pd.ExcelWriter(filepath, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
+                # Load existing sheet to find starting row
+                try:
+                    existing_df = pd.read_excel(filepath, sheet_name=sheet_name)
+                    startrow = len(existing_df) + 1
+                except ValueError:
+                    # Sheet doesn't exist -> write from row 0
+                    startrow = 0
+
+                df_new.to_excel(writer, sheet_name=sheet_name, index=False, header=startrow == 0, startrow=startrow)
+                print(f"✅ Appended log to {filepath} (sheet: {sheet_name})")
+
+        except InvalidFileException as e:
+            print("❌ Error reading the Excel file:", e)
+
+
+
+
 
 # === Load dữ liệu ===
 @st.cache_data
