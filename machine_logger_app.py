@@ -70,19 +70,26 @@ def main():
         df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
         df["Thời gian (giờ)/Total time (hr)"] = df[time_col] / 60
 
-    # 👉 Chọn dự án trong sheet đó
-    col_project = "Mã dự án/Project"
+    # 🔍 Tìm cột chứa "dự án"
+    project_col_candidates = [col for col in df.columns if "dự án" in col.lower()]
+    if not project_col_candidates:
+        st.error("❌ Không tìm thấy cột chứa tên dự án.")
+        st.write("Danh sách cột trong sheet:", df.columns.tolist())
+        return
+
+    col_project = project_col_candidates[0]  # Ưu tiên cột đầu tiên khớp
+    st.info(f"✅ Dùng cột dự án: `{col_project}`")
+
     available_projects = df[col_project].dropna().unique().tolist()
     selected_project = st.selectbox("📁 Chọn dự án", available_projects)
 
-    # 👉 Lọc dữ liệu theo dự án
     df_filtered = df[df[col_project] == selected_project]
 
-    # 📋 Xem dữ liệu
+    # 📋 Hiển thị dữ liệu
     st.markdown("### 📄 Dữ liệu chi tiết")
     st.dataframe(df_filtered, use_container_width=True)
 
-    # 📊 Vẽ biểu đồ tổng thời gian theo máy trong dự án
+    # 📊 Vẽ biểu đồ
     st.markdown("---")
     plot_machine_by_project(df_filtered, selected_project)
 
