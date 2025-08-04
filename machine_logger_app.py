@@ -3,13 +3,21 @@ import pandas as pd
 import plotly.express as px
 
 # ================================================
-# ✅ ĐỌC FILE EXCEL ĐÃ UPLOAD
+# ✅ ĐỌC TOÀN BỘ SHEET TRONG FILE EXCEL
 # ================================================
-def load_uploaded_excel(file):
+def load_all_sheets(file):
     try:
-        df = pd.read_excel(file)
-        df.columns = df.columns.str.strip()  # Làm sạch tên cột
-        return df
+        xls = pd.ExcelFile(file)
+        sheet_dfs = []
+
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            df.columns = df.columns.str.strip()
+            df["Nguồn sheet"] = sheet_name  # Gắn tên sheet vào dữ liệu
+            sheet_dfs.append(df)
+
+        df_all = pd.concat(sheet_dfs, ignore_index=True)
+        return df_all
     except Exception as e:
         st.error(f"❌ Không thể đọc file Excel: {e}")
         return None
@@ -18,21 +26,21 @@ def load_uploaded_excel(file):
 # 📊 BIỂU ĐỒ TỔNG GIỜ THEO DỰ ÁN
 # ================================================
 def plot_project_summary(df):
+    col_project = "Mã dự án/Project"
+    col_total_min = "Tổng thời gian gia công/Total machining time (min)"
+
     st.subheader("📊 Tổng thời gian gia công theo từng dự án")
 
-    col_project = "Mã dự án/Project"
-    col_total_time = "Tổng thời gian gia công/Total machining time (min)"
-
-    if col_project not in df.columns or col_total_time not in df.columns:
-        st.warning("⚠️ Không tìm thấy cột cần thiết trong dữ liệu.")
+    if col_project not in df.columns or col_total_min not in df.columns:
+        st.warning("⚠️ Thiếu cột cần thiết.")
         return
 
-    df_group = df.groupby(col_project)[col_total_time].sum().reset_index()
+    df_group = df.groupby(col_project)[col_total_min].sum().reset_index()
 
     fig = px.bar(
         df_group,
         x=col_project,
-        y=col_total_time,
+        y=col_total_min,
         text_auto=".2s",
         color=col_project,
         title="Tổng thời gian gia công theo từng dự án"
@@ -45,10 +53,10 @@ def plot_project_summary(df):
 def plot_machine_per_project(df):
     col_project = "Mã dự án/Project"
     col_machine = "Machine/máy"
-    col_total_time = "Tổng thời gian gia công/Total machining time (min)"
+    col_total_min = "Tổng thời gian gia công/Total machining time (min)"
 
-    if any(col not in df.columns for col in [col_project, col_machine, col_total_time]):
-        st.warning("⚠️ Không tìm thấy cột cần thiết trong dữ liệu.")
+    if any(col not in df.columns for col in [col_project, col_machine, col_total_min]):
+        st.warning("⚠️ Thiếu cột cần thiết.")
         return
 
     projects = df[col_project].dropna().unique()
@@ -56,7 +64,7 @@ def plot_machine_per_project(df):
         st.markdown(f"### 📁 Dự án: `{proj}`")
         df_proj = df[df[col_project] == proj]
 
-        df_group = df_proj.groupby(col_machine)[col_total_time].sum().reset_index()
+        df_group = df_proj.groupby(col_machine)[col_total_min].sum().reset_index()
         if df_group.empty:
             st.info("⛔ Không có dữ liệu máy cho dự án này.")
             continue
@@ -64,7 +72,7 @@ def plot_machine_per_project(df):
         fig = px.bar(
             df_group,
             x=col_machine,
-            y=col_total_time,
+            y=col_total_min,
             text_auto=".2s",
             color=col_machine,
             title=f"⏱️ Tổng thời gian theo máy - Dự án {proj}"
@@ -75,20 +83,20 @@ def plot_machine_per_project(df):
 # 🚀 APP CHÍNH
 # ================================================
 def main():
-    st.set_page_config(page_title="📂 Machine Report per Project", layout="wide")
-    st.title("📄 Báo cáo thời gian gia công theo Dự Án & Máy")
+    st.set_page_config(page_title="📂 Machine Report by Sheet & Project", layout="wide")
+    st.title("📄 Báo cáo thời gian gia công tổng hợp từ nhiều sheet")
 
-    uploaded_file = st.file_uploader("📤 Tải lên file Excel", type=["xlsx"])
+    uploaded_file = st.file_uploader("📤 Tải lên file Excel (nhiều sheet)", type=["xlsx"])
     if uploaded_file:
-        df = load_uploaded_excel(uploaded_file)
+        df = load_all_sheets(uploaded_file)
 
         if df is not None and not df.empty:
-            st.success("✅ Đã đọc file thành công!")
+            st.success("✅ Đã đọc thành công toàn bộ dữ liệu!")
 
-            # 💡 Loại bỏ các cột Unnamed
+            # 💡 Loại bỏ cột Unnamed
             df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
-            # ➕ Tạo thêm cột "Tổng thời gian giờ"
+            # ➕ Tạo thêm cột "Thời gian (giờ)"
             time_col = "Tổng thời gian gia công/Total machining time (min)"
             if time_col in df.columns:
                 df["Thời gian (giờ)/Total time (hr)"] = df[time_col] / 60
