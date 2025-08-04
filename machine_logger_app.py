@@ -10,8 +10,11 @@ def load_all_sheets(file):
         xls = pd.ExcelFile(file)
         sheet_data = {}
         for sheet_name in xls.sheet_names:
+            # 🛠 Đọc và làm sạch từng sheet
             if sheet_name == "ROBOT":
-                df = pd.read_excel(xls, sheet_name=sheet_name, skiprows=1)
+                df_raw = pd.read_excel(xls, sheet_name=sheet_name, header=None, skiprows=1)
+                df_raw.columns = df_raw.iloc[0]
+                df = df_raw[1:].copy()
             else:
                 df = pd.read_excel(xls, sheet_name=sheet_name)
 
@@ -19,11 +22,11 @@ def load_all_sheets(file):
             df = df.loc[:, ~df.columns.map(str).str.contains("^Unnamed")]
             df["Loại máy"] = sheet_name
 
-            # Làm sạch cột ngày
+            # 👉 Làm sạch ngày
             if "Ngày/Date" in df.columns:
                 df["Ngày/Date"] = pd.to_datetime(df["Ngày/Date"], errors="coerce", dayfirst=True)
 
-            # Làm sạch thời gian (phút → giờ)
+            # 👉 Làm sạch thời gian
             col_min = "Tổng thời gian gia công/Total machining time (min)"
             if col_min in df.columns:
                 df[col_min] = pd.to_numeric(df[col_min], errors="coerce")
@@ -35,6 +38,7 @@ def load_all_sheets(file):
     except Exception as e:
         st.error(f"❌ Không thể đọc file Excel: {e}")
         return {}
+
 # ================================================
 # 📊 VẼ BIỂU ĐỒ THEO MÁY
 # ================================================
