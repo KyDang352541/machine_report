@@ -10,7 +10,6 @@ def load_all_sheets(file):
         xls = pd.ExcelFile(file)
         sheet_data = {}
         for sheet_name in xls.sheet_names:
-            # 🛠 Đọc và làm sạch từng sheet
             if sheet_name == "ROBOT":
                 df_raw = pd.read_excel(xls, sheet_name=sheet_name, header=None, skiprows=1)
                 df_raw.columns = df_raw.iloc[0]
@@ -25,6 +24,11 @@ def load_all_sheets(file):
             # 👉 Làm sạch ngày
             if "Ngày/Date" in df.columns:
                 df["Ngày/Date"] = pd.to_datetime(df["Ngày/Date"], errors="coerce", dayfirst=True)
+
+            # 👉 Làm sạch SL/Qty
+            if "SL/Qty" in df.columns:
+                df["SL/Qty"] = df["SL/Qty"].astype(str).str.extract(r"(\d+(?:\.\d+)?)")
+                df["SL/Qty"] = pd.to_numeric(df["SL/Qty"], errors="coerce")
 
             # 👉 Làm sạch thời gian
             col_min = "Tổng thời gian gia công/Total machining time (min)"
