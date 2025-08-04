@@ -1,50 +1,52 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 
 # ================================================
-# ✅ ĐỌC TẤT CẢ SHEET VÀ LÀM SẠCH
+# ✅ ĐỌC TOÀN BỘ SHEET TRONG FILE EXCEL
 # ================================================
 def load_all_sheets(file):
     try:
         xls = pd.ExcelFile(file)
         sheet_data = {}
-        for sheet_name in xls.sheet_names:
-            if sheet_name == "ROBOT":
-                df_raw = pd.read_excel(xls, sheet_name=sheet_name, header=None, skiprows=1)
-                df_raw.columns = df_raw.iloc[0]
-                df = df_raw[1:].copy()
-            else:
-                df = pd.read_excel(xls, sheet_name=sheet_name)
 
+        for sheet_name in xls.sheet_names:
+            # Đọc dữ liệu
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+
+            # Làm sạch tên cột
             df.columns = df.columns.map(str).str.strip()
             df = df.loc[:, ~df.columns.map(str).str.contains("^Unnamed")]
+
+            # Gán tên loại máy
             df["Loại máy"] = sheet_name
 
-            # 👉 Làm sạch ngày
+            # Làm sạch ngày nếu có
             if "Ngày/Date" in df.columns:
                 df["Ngày/Date"] = pd.to_datetime(df["Ngày/Date"], errors="coerce", dayfirst=True)
 
-            # 👉 Làm sạch SL/Qty
+            # Làm sạch SL/Qty nếu cần
             if "SL/Qty" in df.columns:
                 df["SL/Qty"] = df["SL/Qty"].astype(str).str.extract(r"(\d+(?:\.\d+)?)")
                 df["SL/Qty"] = pd.to_numeric(df["SL/Qty"], errors="coerce")
 
-            # 👉 Làm sạch thời gian
+            # Làm sạch thời gian và chuyển phút sang giờ
             col_min = "Tổng thời gian gia công/Total machining time (min)"
             if col_min in df.columns:
                 df[col_min] = pd.to_numeric(df[col_min], errors="coerce")
                 df["Thời gian (giờ)/Total time (hr)"] = df[col_min] / 60
 
+            # Lưu lại
             sheet_data[sheet_name] = df
 
         return sheet_data
+
     except Exception as e:
         st.error(f"❌ Không thể đọc file Excel: {e}")
         return {}
 
 # ================================================
-# 📊 VẼ BIỂU ĐỒ THEO MÁY
+# 📊 VẼ BIỂU ĐỒ GIỜ THEO MÁY
 # ================================================
 def plot_machine_by_project(df_filtered, project_name):
     col_machine = "Machine/máy"
@@ -67,7 +69,7 @@ def plot_machine_by_project(df_filtered, project_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # ================================================
-# 🚀 APP CHÍNH
+# 🚀 ỨNG DỤNG CHÍNH
 # ================================================
 def main():
     st.set_page_config(page_title="📂 Machine Report Viewer", layout="wide")
@@ -81,29 +83,29 @@ def main():
     if not sheet_data:
         return
 
-    # 👉 Chọn loại máy (sheet)
+    # 👉 Chọn loại máy (tên sheet)
     machine_types = list(sheet_data.keys())
-    selected_machine = st.selectbox("🛠️ Chọn loại máy", machine_types)
+    selected_machine = st.selectbox("🛠️ Chọn loại máy (sheet)", machine_types)
 
     df = sheet_data[selected_machine]
 
-    # 🔍 Xác định cột dự án
-    project_col = "Mã dự án/Project"
-    if project_col not in df.columns:
-        st.error("❌ Không tìm thấy cột 'Mã dự án/Project'.")
-        st.write("Các cột có trong dữ liệu:", df.columns.tolist())
+    # 🔍 Kiểm tra cột "Mã dự án/Project"
+    col_project = "Mã dự án/Project"
+    if col_project not in df.columns:
+        st.error(f"❌ Không tìm thấy cột '{col_project}'.")
+        st.write("Cột hiện có:", df.columns.tolist())
         return
 
-    # 👉 Chọn dự án
-    available_projects = df[project_col].dropna().unique().tolist()
+    available_projects = df[col_project].dropna().unique().tolist()
     selected_project = st.selectbox("📁 Chọn dự án", available_projects)
 
-    # 👉 Lọc và hiển thị
-    df_filtered = df[df[project_col] == selected_project]
+    df_filtered = df[df[col_project] == selected_project]
 
+    # 📋 Hiển thị bảng dữ liệu
     st.markdown("### 📄 Dữ liệu chi tiết")
     st.dataframe(df_filtered, use_container_width=True)
 
+    # 📊 Vẽ biểu đồ
     st.markdown("---")
     plot_machine_by_project(df_filtered, selected_project)
 
