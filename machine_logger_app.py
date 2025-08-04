@@ -1,48 +1,31 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# === Đọc toàn bộ sheet và gộp vào một DataFrame
-def load_all_data(file):
+# ================================================
+# ✅ LOAD ALL SHEETS FROM EXCEL
+# ================================================
+def load_all_sheets(file):
     try:
         xls = pd.ExcelFile(file)
-        all_dfs = []
-
+        sheet_data = {}
         for sheet_name in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name, header=0)
-
-            df.columns = df.columns.map(str).str.strip()
-            df = df.loc[:, ~df.columns.map(str).str.contains("^Unnamed")]
-            df["Loại máy"] = sheet_name
-
-            # Chuyển định dạng ngày
-            if "Ngày/Date" in df.columns:
-                df["Ngày/Date"] = pd.to_datetime(df["Ngày/Date"], errors="coerce", dayfirst=True)
-
-            # Sửa lỗi SL/Qty
-            if "SL/Qty" in df.columns:
-                df["SL/Qty"] = df["SL/Qty"].astype(str).str.extract(r"(\d+(?:\.\d+)?)")
-                df["SL/Qty"] = pd.to_numeric(df["SL/Qty"], errors="coerce")
-
-            # Thêm cột giờ
-            col_min = "Tổng thời gian gia công/Total machining time (min)"
-            if col_min in df.columns:
-                df[col_min] = pd.to_numeric(df[col_min], errors="coerce")
-                df["Thời gian (giờ)/Total time (hr)"] = df[col_min] / 60
-
-            all_dfs.append(df)
-
-        df_all = pd.concat(all_dfs, ignore_index=True)
-        return df_all
-
+            df.columns = df.columns.str.strip()
+            df = df.loc[:, ~df.columns.str.contains("^Unnamed", na=False)]
+            df["Machine Type"] = sheet_name  # Add sheet name as column
+            sheet_data[sheet_name] = df
+        return sheet_data
     except Exception as e:
-        st.error(f"❌ Không thể đọc file Excel: {e}")
-        return pd.DataFrame()
+        st.error(f"❌ Failed to read Excel file: {e}")
+        return {}
 
-# === BIỂU ĐỒ CỘT
+# ================================================
+# 📊 BAR CHART OF TOTAL HOURS BY MACHINE
+# ================================================
 def plot_bar(df, project_name, selected_machines):
     col_machine = "Machine/máy"
-    col_hour = "Thời gian (giờ)/Total time (hr)"
+    col_hour = "Total Time (hr)"
 
     df_group = (
         df[df[col_machine].isin(selected_machines)]
@@ -57,19 +40,21 @@ def plot_bar(df, project_name, selected_machines):
         y=col_hour,
         text_auto=".2f",
         color=col_machine,
-        title=f"📊 Tổng thời gian (giờ) theo máy - Dự án {project_name}",
-        labels={col_hour: "Tổng thời gian (giờ)"}
+        title=f"📊 Total Processing Time by Machine - Project {project_name}",
+        labels={col_hour: "Hours"}
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# === BIỂU ĐỒ SUNBURST
+# ================================================
+# 🌀 SUNBURST CHART FOR MACHINE & TASK
+# ================================================
 def plot_sunburst(df, selected_machines):
     col_machine = "Machine/máy"
     col_desc = "Mô tả/Description"
-    col_hour = "Thời gian (giờ)/Total time (hr)"
+    col_hour = "Total Time (hr)"
 
     if any(col not in df.columns for col in [col_machine, col_desc, col_hour]):
-        st.warning("⚠️ Thiếu cột để vẽ biểu đồ phân cấp.")
+        st.warning("⚠️ Required columns missing for sunburst chart.")
         return
 
     df_sun = df[df[col_machine].isin(selected_machines)]
@@ -78,56 +63,74 @@ def plot_sunburst(df, selected_machines):
         df_sun,
         path=[col_machine, col_desc],
         values=col_hour,
-        title="🌀 Phân bổ thời gian (giờ) theo Máy và Task",
-        labels={col_hour: "Giờ"}
+        title="🌀 Time Allocation by Machine and Task",
+        labels={col_hour: "Hours"}
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# === APP CHÍNH
+# ================================================
+# 🚀 MAIN APP
+# ================================================
 def main():
-    st.set_page_config(page_title="📂 Machine Report Viewer", layout="wide")
-    st.title("📄 Báo cáo thời gian gia công toàn bộ máy và dự án")
+    st.set_page_config(page_title="⏱️ Machine Time Report Viewer", layout="wide")
+    st.title("📄 Machining Time Report by Machine Type and Project")
 
-    uploaded_file = st.file_uploader("📤 Tải lên file Excel", type=["xlsx"])
+    uploaded_file = st.file_uploader("📤 Upload Excel File", type=["xlsx"])
     if not uploaded_file:
         return
 
-    df_all = load_all_data(uploaded_file)
-    if df_all.empty:
+    sheet_data = load_all_sheets(uploaded_file)
+    if not sheet_data:
         return
 
+    st.markdown("## 🔧 Filter Settings")
+
+    # 👉 Merge all sheets
+    full_df = pd.concat(sheet_data.values(), ignore_index=True)
+
+    # Convert total minutes to hours
+    col_min = "Tổng thời gian gia công/Total machining time (min)"
+    if col_min in full_df.columns:
+        full_df[col_min] = pd.to_numeric(full_df[col_min], errors="coerce")
+        full_df["Total Time (hr)"] = full_df[col_min] / 60
+
+    # Identify project column
     col_project = "Mã dự án/Project"
-    col_machine = "Machine/máy"
-
-    if col_project not in df_all.columns or col_machine not in df_all.columns:
-        st.error(f"❌ Thiếu cột '{col_project}' hoặc '{col_machine}'.")
-        st.write("Cột hiện có:", df_all.columns.tolist())
+    if col_project not in full_df.columns:
+        st.error("❌ Column 'Mã dự án/Project' not found.")
+        st.write("Available columns:", full_df.columns.tolist())
         return
 
-    available_projects = df_all[col_project].dropna().unique().tolist()
-    selected_project = st.selectbox("📁 Chọn dự án", available_projects)
+    # Select project
+    projects = full_df[col_project].dropna().unique().tolist()
+    selected_project = st.selectbox("📁 Select Project", projects)
 
-    df_project = df_all[df_all[col_project] == selected_project]
+    # Filter by selected project
+    df_filtered = full_df[full_df[col_project] == selected_project]
 
-    available_machines = df_project[col_machine].dropna().unique().tolist()
-    selected_machines = st.multiselect("🔧 Chọn máy cần xem", available_machines, default=available_machines)
+    # Select machines
+    machine_col = "Machine/máy"
+    available_machines = df_filtered[machine_col].dropna().unique().tolist()
+    selected_machines = st.multiselect("🛠️ Select Machine(s)", available_machines, default=available_machines)
 
     if not selected_machines:
-        st.warning("⚠️ Vui lòng chọn ít nhất một máy.")
+        st.warning("⚠️ Please select at least one machine.")
         return
 
-    df_filtered = df_project[df_project[col_machine].isin(selected_machines)]
+    df_selected = df_filtered[df_filtered[machine_col].isin(selected_machines)]
 
-    # 📋 Hiển thị bảng
-    st.markdown("### 📄 Dữ liệu chi tiết đã lọc")
-    st.dataframe(df_filtered, use_container_width=True)
+    # Show data
+    st.markdown("### 📋 Filtered Data")
+    st.dataframe(df_selected, use_container_width=True)
 
-    # 📊 Biểu đồ
-    st.markdown("### 📊 Tổng thời gian theo máy")
-    plot_bar(df_filtered, selected_project, selected_machines)
+    # Charts
+    st.markdown("## 📊 Visualization")
+    plot_bar(df_selected, selected_project, selected_machines)
+    st.markdown("---")
+    plot_sunburst(df_selected, selected_machines)
 
-    st.markdown("### 🌀 Phân bổ thời gian theo mô tả")
-    plot_sunburst(df_filtered, selected_machines)
-
+# ================================================
+# 🔁 RUN APP
+# ================================================
 if __name__ == "__main__":
     main()
