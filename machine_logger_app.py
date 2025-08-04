@@ -15,8 +15,8 @@ def load_all_sheets(file):
             else:
                 df = pd.read_excel(xls, sheet_name=sheet_name)
 
-            df.columns = df.columns.str.strip()
-            df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+            df.columns = df.columns.map(str).str.strip()
+            df = df.loc[:, ~df.columns.map(str).str.contains("^Unnamed")]
             df["Loại máy"] = sheet_name
 
             # Làm sạch cột ngày
@@ -35,7 +35,6 @@ def load_all_sheets(file):
     except Exception as e:
         st.error(f"❌ Không thể đọc file Excel: {e}")
         return {}
-
 # ================================================
 # 📊 VẼ BIỂU ĐỒ THEO MÁY
 # ================================================
