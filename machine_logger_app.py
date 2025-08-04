@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 
@@ -12,9 +12,9 @@ def load_all_sheets(file):
         for sheet_name in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet_name)
             df.columns = df.columns.str.strip()
-            df = df.loc[:, ~df.columns.str.contains("^Unnamed")]  # Xóa cột thừa
-            df["Loại máy"] = sheet_name  # Gắn tên sheet
-            sheet_data[sheet_name] = df
+            df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]  # Xóa cột thừa
+            df["Loại máy"] = sheet_name.strip()  # Gắn tên sheet (loại máy)
+            sheet_data[sheet_name.strip()] = df
         return sheet_data
     except Exception as e:
         st.error(f"❌ Không thể đọc file Excel: {e}")
@@ -29,6 +29,7 @@ def plot_machine_by_project(df_filtered, project_name):
 
     if any(col not in df_filtered.columns for col in [col_machine, col_total_min]):
         st.warning("⚠️ Thiếu cột cần thiết.")
+        st.write("📑 Các cột hiện có:", df_filtered.columns.tolist())
         return
 
     df_group = df_filtered.groupby(col_machine)[col_total_min].sum().reset_index()
@@ -63,21 +64,23 @@ def main():
     selected_machine = st.selectbox("🛠️ Chọn loại máy (sheet)", machine_types)
 
     df = sheet_data[selected_machine]
-    time_col = "Tổng thời gian gia công/Total machining time (min)"
+    df.columns = df.columns.str.strip()  # Chuẩn hóa tên cột
+    st.write("📑 Các cột hiện có trong sheet:", df.columns.tolist())
 
-    # Chuyển phút -> giờ
+    # Chuyển phút → giờ nếu có
+    time_col = "Tổng thời gian gia công/Total machining time (min)"
     if time_col in df.columns:
         df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
         df["Thời gian (giờ)/Total time (hr)"] = df[time_col] / 60
 
-    # 🔍 Tìm cột chứa "dự án"
-    project_col_candidates = [col for col in df.columns if "dự án" in col.lower()]
+    # 🔍 Tìm cột chứa "dự án" hoặc "project"
+    project_col_candidates = [col for col in df.columns if "dự án" in col.lower() or "project" in col.lower()]
     if not project_col_candidates:
         st.error("❌ Không tìm thấy cột chứa tên dự án.")
-        st.write("Danh sách cột trong sheet:", df.columns.tolist())
+        st.write("📑 Các cột hiện có:", df.columns.tolist())
         return
 
-    col_project = project_col_candidates[0]  # Ưu tiên cột đầu tiên khớp
+    col_project = project_col_candidates[0]  # Lấy cột đầu tiên khớp
     st.info(f"✅ Dùng cột dự án: `{col_project}`")
 
     available_projects = df[col_project].dropna().unique().tolist()
