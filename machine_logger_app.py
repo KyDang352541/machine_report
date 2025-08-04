@@ -84,6 +84,18 @@ def main():
 
         if df is not None and not df.empty:
             st.success("✅ Đã đọc file thành công!")
+
+            # 💡 Loại bỏ các cột Unnamed
+            df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+            # ➕ Tạo thêm cột "Tổng thời gian giờ"
+            time_col = "Tổng thời gian gia công/Total machining time (min)"
+            if time_col in df.columns:
+                df["Thời gian (giờ)/Total time (hr)"] = df[time_col] / 60
+            else:
+                st.warning("⚠️ Không tìm thấy cột thời gian (phút) để quy đổi sang giờ.")
+
+            # 📋 Hiển thị bảng dữ liệu
             st.dataframe(df.head(20), use_container_width=True)
 
             # 📊 Biểu đồ tổng hợp theo dự án
