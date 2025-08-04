@@ -42,11 +42,11 @@ def load_all_data(file):
 # === BIỂU ĐỒ CỘT
 def plot_bar(df, project_name, selected_machines):
     col_machine = "Machine/máy"
-    col_min = "Tổng thời gian gia công/Total machining time (min)"
+    col_hour = "Thời gian (giờ)/Total time (hr)"
 
     df_group = (
         df[df[col_machine].isin(selected_machines)]
-        .groupby(col_machine)[col_min]
+        .groupby(col_machine)[col_hour]
         .sum()
         .reset_index()
     )
@@ -54,10 +54,11 @@ def plot_bar(df, project_name, selected_machines):
     fig = px.bar(
         df_group,
         x=col_machine,
-        y=col_min,
-        text_auto=".2s",
+        y=col_hour,
+        text_auto=".2f",
         color=col_machine,
-        title=f"📊 Tổng thời gian theo máy - Dự án {project_name}"
+        title=f"📊 Tổng thời gian (giờ) theo máy - Dự án {project_name}",
+        labels={col_hour: "Tổng thời gian (giờ)"}
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -65,9 +66,9 @@ def plot_bar(df, project_name, selected_machines):
 def plot_sunburst(df, selected_machines):
     col_machine = "Machine/máy"
     col_desc = "Mô tả/Description"
-    col_min = "Tổng thời gian gia công/Total machining time (min)"
+    col_hour = "Thời gian (giờ)/Total time (hr)"
 
-    if any(col not in df.columns for col in [col_machine, col_desc, col_min]):
+    if any(col not in df.columns for col in [col_machine, col_desc, col_hour]):
         st.warning("⚠️ Thiếu cột để vẽ biểu đồ phân cấp.")
         return
 
@@ -76,8 +77,9 @@ def plot_sunburst(df, selected_machines):
     fig = px.sunburst(
         df_sun,
         path=[col_machine, col_desc],
-        values=col_min,
-        title="🌀 Phân bổ thời gian theo Máy và Task"
+        values=col_hour,
+        title="🌀 Phân bổ thời gian (giờ) theo Máy và Task",
+        labels={col_hour: "Giờ"}
     )
     st.plotly_chart(fig, use_container_width=True)
 
