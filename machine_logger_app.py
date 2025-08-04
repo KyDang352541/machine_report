@@ -99,6 +99,7 @@ def main():
             # ➕ Tạo thêm cột "Thời gian (giờ)"
             time_col = "Tổng thời gian gia công/Total machining time (min)"
             if time_col in df.columns:
+                df[time_col] = pd.to_numeric(df[time_col], errors="coerce")  # ✅ chuyển sang float an toàn
                 df["Thời gian (giờ)/Total time (hr)"] = df[time_col] / 60
             else:
                 st.warning("⚠️ Không tìm thấy cột thời gian (phút) để quy đổi sang giờ.")
